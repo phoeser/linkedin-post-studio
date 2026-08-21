@@ -58,7 +58,7 @@
     <div class="row"><button class="pri" id="auf">&Ouml;ffnen</button></div>
     <div class="st bad" id="torSt"></div>
     <div class="hint">Das Master-Passwort ist nicht dein Studio-Passwort. Es steht in
-      <code>MASTER-PASSWORT.txt</code> in deinem Projektordner.</div>
+      <code>master.txt</code> in deinem Projektordner.</div>
   </div>
 </div>
 
@@ -146,11 +146,24 @@ $('auf').onclick=async()=>{
     document.getElementById('seite').classList.add('auf');
     zeichnen();
   }catch(e){
-    sagen('torSt', /nutzer\.json/.test(String(e.message)) ? String(e.message)
-        : 'Master-Passwort stimmt nicht.', 'bad');
+    /* Nur ein gescheitertes Entschluesseln heisst „falsches Passwort". Ein
+       Netzfehler oder eine kaputte Datei schickte den Leser sonst auf die
+       falsche Faehrte. */
+    const m=String((e&&e.message)||e);
+    sagen('torSt',
+      /nutzer\.json/.test(m) ? m
+      : (e instanceof TypeError) ? 'nutzer.json ließ sich nicht laden — liegt die Seite auf einem Webserver?'
+      : /JSON|Unexpected/.test(m) ? 'nutzer.json ist beschädigt: '+m
+      : (!DATEN || !DATEN.master) ? 'In nutzer.json fehlt der Master-Tresor.'
+      : 'Master-Passwort stimmt nicht.', 'bad');
     $('auf').disabled=false;
   }
 };
+
+/* Alles lebt nur im Speicher dieser Seite. Wer den Tab schliesst, bevor er
+   die Datei heruntergeladen hat, hat das Passwort umsonst vergeben. */
+let offen=false;
+window.addEventListener('beforeunload',e=>{ if(offen){ e.preventDefault(); e.returnValue='' } });
 
 function zeichnen(){
   const tb=$('tbody'); tb.innerHTML='';
@@ -186,7 +199,8 @@ $('anlegen').onclick=async()=>{
   if(!name){ sagen('neuSt','Der Name fehlt.','bad'); return }
   if(/\s/.test(name)){ sagen('neuSt','Der Name darf kein Leerzeichen enthalten.','bad'); return }
   if(!blatt){ sagen('neuSt','Das Tabellenblatt fehlt.','bad'); return }
-  if(/\s/.test(blatt)){ sagen('neuSt','Der Blattname darf kein Leerzeichen enthalten — er steht in einer Google-Adresse.','bad'); return }
+  if(!/^[A-Za-zÄÖÜäöüß0-9_-]{2,20}$/.test(blatt)){
+    sagen('neuSt','Der Blattname darf nur Buchstaben, Ziffern, Bindestrich und Unterstrich enthalten (2–20 Zeichen) — er steht in einer Google-Adresse.','bad'); return }
   if(DATEN.users.some(u=>String(u.name).trim().toLowerCase()===name.toLowerCase())){
     sagen('neuSt','„'+name+'“ gibt es schon.','bad'); return }
   if(!pw){ pw=wuerfeln(); $('nPw').value=pw }
@@ -194,8 +208,11 @@ $('anlegen').onclick=async()=>{
   $('anlegen').disabled=true; sagen('neuSt','Baue den Tresor…');
   try{
     const t=await tresorBauen(pw,{appKey:APPKEY,name:name,anzeige:anzeige,rolle:rolle,blatt:blatt});
-    DATEN.users.push(Object.assign({name:name, blatt:blatt}, t));
+    /* anzeige und rolle auch unverschluesselt mitfuehren: „Neues Passwort"
+       baut den Tresor neu und haette sie sonst verloren. Geheim sind sie nicht. */
+    DATEN.users.push(Object.assign({name:name, blatt:blatt, anzeige:anzeige, rolle:rolle}, t));
     zeichnen();
+    offen=true;
     sagen('neuSt','Angelegt. Passwort für '+name+': '+pw+' — jetzt unten herunterladen und hochladen.','gut');
     ['nName','nAnzeige','nRolle','nBlatt'].forEach(i=>$(i).value='');
   }catch(e){ sagen('neuSt','Ging nicht: '+(e.message||e),'bad') }
@@ -207,10 +224,20 @@ async function passwortNeu(u){
   if(pw===null) return;
   const neu=pw.trim()||wuerfeln();
   if(neu.length<8){ alert('Mindestens acht Zeichen.'); return }
-  const t=await tresorBauen(neu,{appKey:APPKEY,name:u.name,anzeige:u.anzeige||u.name,
-                                 rolle:u.rolle||'', blatt:u.blatt||'Untitled'});
+  /* anzeige und rolle stehen im Klartextteil des Eintrags. Fehlen sie (alter
+     Eintrag), lieber nachfragen als sie stillschweigend loeschen. */
+  let anz=u.anzeige, rol=u.rolle;
+  if(anz===undefined || rol===undefined){
+    anz=prompt('Anzeigename für „'+u.name+'“ (steht so in der Vorschau):', u.anzeige||u.name);
+    if(anz===null) return;
+    rol=prompt('Rolle für „'+u.name+'“ (Zeile unter dem Namen):', u.rolle||'');
+    if(rol===null) return;
+    u.anzeige=anz; u.rolle=rol;
+  }
+  const t=await tresorBauen(neu,{appKey:APPKEY,name:u.name,anzeige:anz||u.name,
+                                 rolle:rol||'', blatt:u.blatt||'Untitled'});
   Object.assign(u,t);
-  zeichnen();
+  offen=true; zeichnen();
   sagen('listeSt','Neues Passwort für '+u.name+': '+neu+' — herunterladen und hochladen nicht vergessen.','gut');
   alert('Neues Passwort für '+u.name+':\n\n'+neu+'\n\nJetzt unten herunterladen und hochladen.');
 }
@@ -218,15 +245,18 @@ async function passwortNeu(u){
 function entfernen(u){
   if(DATEN.users.length<2){ alert('Der letzte Zugang bleibt — sonst kommt niemand mehr rein.'); return }
   if(!confirm('„'+u.name+'“ entfernen?\n\nDer Zugang ist weg, sobald du die Datei hochgeladen hast. '
-    +'Die Einträge im Sheet bleiben stehen.')) return;
+    +'Die Einträge im Sheet bleiben stehen.\n\nWICHTIG: Die Studio-Datei trägt eine eingebaute Kopie '
+    +'der Zugangsliste. Damit der Zugang auch dann nicht mehr öffnet, wenn nutzer.json einmal nicht '
+    +'lädt, muss index.html neu gebaut werden. Sag mir danach Bescheid.')) return;
   DATEN.users=DATEN.users.filter(x=>x!==u);
-  zeichnen();
+  offen=true; zeichnen();
 }
 
 $('dl').onclick=()=>{
   const b=new Blob([JSON.stringify(DATEN)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='nutzer.json';
   a.click(); URL.revokeObjectURL(a.href);
+  offen=false;
   sagen('dlSt','Heruntergeladen. Jetzt auf der Upload-Seite ablegen — Dateiname nicht ändern.','gut');
 };
 $('kopieren').onclick=()=>{
