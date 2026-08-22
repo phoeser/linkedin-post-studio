@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LinkedIn verbunden &middot; Post-Studio</title>
+<style>
+ body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:#f4f2ee;color:#1b1b1b;font-size:15px;text-align:center;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+ .box{background:#fff;border:1px solid #e0dfdc;border-radius:10px;padding:26px 24px;max-width:380px}
+ h1{font-size:17px;margin:0 0 10px}
+ p{margin:0 0 8px;line-height:1.5}
+ .k{color:#666;font-size:13px}
+</style></head>
+<body>
+<div class="box">
+  <h1 id="t">Einen Moment&hellip;</h1>
+  <p id="m">Die Antwort von LinkedIn wird an das Studio zurückgegeben.</p>
+  <p class="k" id="k"></p>
+</div>
+<script>
+/* Diese Seite ist die Rueckkehradresse der LinkedIn-Anmeldung. Sie enthaelt
+   BEWUSST keine Schluessel: sie reicht den Einmalcode nur an das Studiofenster
+   weiter, das sie geoeffnet hat. Den Austausch gegen ein Token macht Make. */
+(function(){
+  var p=new URLSearchParams(location.search);
+  var code=p.get('code'), state=p.get('state'), err=p.get('error'),
+      beschreibung=p.get('error_description');
+  var t=document.getElementById('t'), m=document.getElementById('m'), k=document.getElementById('k');
+
+  function fertig(titel, text, hinweis){
+    t.textContent=titel; m.textContent=text; k.textContent=hinweis||'';
+  }
+
+  if(err){
+    fertig('Nicht verbunden', beschreibung || 'LinkedIn hat die Anmeldung abgebrochen.',
+           'Du kannst dieses Fenster schließen und es im Studio noch einmal versuchen.');
+    try{ if(window.opener) window.opener.postMessage({typ:'li-code', fehler:err, state:state}, location.origin) }catch(_){}
+    return;
+  }
+  if(!code){
+    fertig('Kein Code erhalten', 'Diese Seite wird nur nach einer LinkedIn-Anmeldung aufgerufen.',
+           'Ruf sie nicht direkt auf — der Weg führt über „LinkedIn verbinden" im Studio.');
+    return;
+  }
+  if(!window.opener){
+    fertig('Fenster verloren', 'Das Studio-Fenster ist nicht mehr da.',
+           'Bitte das Studio öffnen und „LinkedIn verbinden" noch einmal starten.');
+    return;
+  }
+  try{
+    window.opener.postMessage({typ:'li-code', code:code, state:state}, location.origin);
+    fertig('Fertig', 'Du kannst dieses Fenster schließen.', 'Es schließt sich gleich von selbst.');
+    setTimeout(function(){ window.close() }, 1200);
+  }catch(e){
+    fertig('Übergabe fehlgeschlagen', String(e && e.message || e),
+           'Bitte im Studio noch einmal versuchen.');
+  }
+})();
+</script>
+</body></html>
