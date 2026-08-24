@@ -1,6 +1,6 @@
 {
-  "name": "LinkedIn Post-Studio",
-  "short_name": "Post-Studio",
+  "name": "Social Post-Planner",
+  "short_name": "Post-Planner",
   "description": "Entwuerfe schreiben, Bilder erzeugen, Termine setzen, freigeben.",
   "start_url": ".",
   "scope": ".",
