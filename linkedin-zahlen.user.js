@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Post-Studio: LinkedIn-Zahlen ins Sheet
 // @namespace    phoeser.linkedin-post-studio
-// @version      3.0
+// @version      3.1
 // @description  Liest die Beitragszahlen aus deiner eingeloggten LinkedIn-Analytics-Oberflaeche und schreibt sie als "Zahlen"-Zeilen ins Redaktions-Sheet (Post-Studio).
 // @author       Paul Hoeser / Post-Studio
 // @match        https://www.linkedin.com/*
@@ -125,6 +125,9 @@
 
   /* ---------- Einstieg: das Studio ---------- */
   if(location.hostname==='phoeser.github.io'){
+    /* Sofort melden, dass es mich gibt: das Studio zeigt sonst den Installationsknopf
+       und oeffnet beim Messen gar keinen LinkedIn-Tab (patch66). */
+    try{ (typeof unsafeWindow!=='undefined'?unsafeWindow:window).__ZAHLEN_SKRIPT='3.1' }catch(_){}
     /* Nach dem Anmelden steht der Schluessel bereit — einmal abholen, dann nie wieder. */
     let n=0; const tick=setInterval(()=>{
       let k=null, t=null;
