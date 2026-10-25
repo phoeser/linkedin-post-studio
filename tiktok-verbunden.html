@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TikTok verbinden</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#0f1115;color:#eef0f3;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:16px}
+  .karte{max-width:440px;width:100%;background:#1a1d24;border-radius:14px;padding:28px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  h1{font-size:20px;margin:0 0 12px}
+  p{line-height:1.5;color:#c9cdd4}
+  .ok{color:#5ee0a0}.weg{color:#ff7a7a}
+  a{color:#7fb6ff}
+</style>
+</head>
+<body>
+<div class="karte">
+  <h1>TikTok verbinden</h1>
+  <p id="msg">Einen Moment – die Verbindung wird eingerichtet …</p>
+</div>
+<script>
+(function(){
+  var HOOK='https://hook.eu2.make.com/vyb4v1qh5mpb1wbdgmkl8c48rk4ls6ey';
+  var q=new URLSearchParams(location.search);
+  var code=q.get('code'), fehler=q.get('error'), m=document.getElementById('msg');
+  function zeig(t,k){m.innerHTML=t;m.className=k||'';}
+  if(fehler){zeig('TikTok hat die Anmeldung abgebrochen: '+(q.get('error_description')||fehler),'weg');return;}
+  if(!code){zeig('Kein Anmeldecode gefunden. Bitte im Studio erneut auf „TikTok verbinden“ klicken.','weg');return;}
+  fetch(HOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({aktion:'ttcode',code:code,state:q.get('state')||''})})
+    .then(function(r){return r.text();})
+    .then(function(t){
+      var d={};try{d=JSON.parse(t);}catch(e){}
+      if(d.ok==='ja'){
+        zeig('Verbunden mit <b>'+(d.anzeige||'TikTok')+'</b>. Du kannst dieses Fenster schließen und im <a href="./">Studio</a> weitermachen.','ok');
+        try{localStorage.setItem('tiktok_verbunden',JSON.stringify({anzeige:d.anzeige,zeit:Date.now()}));}catch(e){}
+      } else {
+        zeig('Verbindung fehlgeschlagen: '+(d.meldung||d.fehler||t||'unbekannter Fehler'),'weg');
+      }
+    })
+    .catch(function(e){zeig('Netzwerkfehler: '+e.message,'weg');});
+})();
+</script>
+</body>
+</html>
